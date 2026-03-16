@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Star Health – SOC Alert Classification Tool</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #1c2330;
+    --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+    --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
+    --accent: #2563eb; --accent-light: #3b82f6;
+    --accent-bg: rgba(37,99,235,0.12); --accent-border: rgba(37,99,235,0.35);
+    --green: #22c55e; --green-bg: rgba(34,197,94,0.1); --green-border: rgba(34,197,94,0.3);
+    --amber: #f59e0b; --amber-bg: rgba(245,158,11,0.1); --amber-border: rgba(245,158,11,0.3);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.1); --red-border: rgba(239,68,68,0.3);
+    --teal: #14b8a6; --teal-bg: rgba(20,184,166,0.1); --teal-border: rgba(20,184,166,0.3);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1); --purple-border: rgba(167,139,250,0.3);
+    --gray-bg: rgba(255,255,255,0.04); --gray-border: rgba(255,255,255,0.06);
+    --radius: 10px; --radius-sm: 6px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 15px; min-height: 100vh; }
+
+  header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 100; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .logo-icon svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; }
+  .logo-text { font-size: 15px; font-weight: 600; }
+  .logo-sub { font-size: 12px; color: var(--text3); margin-top: 1px; }
+  .header-badge { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent-light); font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 99px; font-family: 'IBM Plex Mono', monospace; }
+
+  .layout { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 60px); }
+
+  aside { background: var(--bg2); border-right: 1px solid var(--border); padding: 24px 0; }
+  .nav-section { padding: 0 16px; margin-bottom: 24px; }
+  .nav-label { font-size: 10px; font-weight: 600; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; padding: 0 8px; margin-bottom: 6px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text2); cursor: pointer; transition: all 0.15s; border: 1px solid transparent; margin-bottom: 2px; }
+  .nav-item:hover { background: var(--gray-bg); color: var(--text); }
+  .nav-item.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent-light); font-weight: 500; }
+  .nav-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-blue { background: var(--accent-light); } .dot-green { background: var(--green); }
+  .dot-amber { background: var(--amber); } .dot-teal { background: var(--teal); }
+  .dot-red { background: var(--red); } .dot-gray { background: var(--text3); }
+  .dot-purple { background: var(--purple); }
+  .nav-divider { height: 1px; background: var(--border); margin: 8px 16px 16px; }
+
+  main { padding: 32px; overflow-y: auto; }
+  .page { display: none; }
+  .page.active { display: block; animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .page-header { margin-bottom: 28px; }
+  .page-title { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+  .page-desc { font-size: 14px; color: var(--text2); line-height: 1.6; }
+
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: 12px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; }
+
+  .classify-grid { display: grid; grid-template-columns: 1fr 300px; gap: 16px; }
+  .input-wrap { display: flex; gap: 8px; margin-bottom: 16px; }
+  .classify-input { flex: 1; background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 14px; color: var(--text); font-family: 'IBM Plex Mono', monospace; outline: none; transition: border 0.15s; }
+  .classify-input:focus { border-color: var(--accent-light); }
+  .classify-input::placeholder { color: var(--text3); }
+  .btn { background: var(--accent); border: none; color: #fff; font-size: 13px; font-weight: 500; padding: 10px 18px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+  .btn:hover { background: var(--accent-light); }
+  .btn:active { transform: scale(0.98); }
+  .btn-ghost { background: transparent; border: 1px solid var(--border2); color: var(--text2); font-size: 12px; padding: 6px 12px; border-radius: var(--radius-sm); cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+  .btn-ghost:hover { background: var(--gray-bg); color: var(--text); }
+
+  .result-area { min-height: 80px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; display: flex; align-items: center; justify-content: center; }
+  .result-placeholder { color: var(--text3); font-size: 13px; text-align: center; }
+  .result-content { width: 100%; display: none; }
+  .result-type { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .result-reason { font-size: 13px; color: var(--text2); line-height: 1.6; }
+  .result-tag { display: inline-flex; font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 99px; margin-bottom: 8px; font-family: 'IBM Plex Mono', monospace; }
+
+  .ref-list { display: flex; flex-direction: column; gap: 8px; }
+  .ref-item { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .ref-name { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
+  .ref-patterns { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; }
+  .chip-blue { background: var(--accent-bg); color: var(--accent-light); border: 1px solid var(--accent-border); }
+  .chip-green { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .chip-amber { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+  .chip-red { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+  .chip-gray { background: var(--gray-bg); color: var(--text2); border: 1px solid var(--border2); }
+
+  /* Upload */
+  .upload-zone { border: 2px dashed var(--border2); border-radius: var(--radius); padding: 48px 32px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg3); }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--purple); background: var(--purple-bg); }
+  .upload-icon { width: 52px; height: 52px; margin: 0 auto 16px; opacity: 0.5; }
+  .upload-title { font-size: 16px; font-weight: 500; margin-bottom: 6px; }
+  .upload-sub { font-size: 13px; color: var(--text3); margin-bottom: 20px; }
+  .upload-input { display: none; }
+
+  /* Column picker */
+  .col-picker { background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .col-picker-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .col-picker-sub { font-size: 13px; color: var(--text3); margin-bottom: 14px; }
+  .col-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .col-chip { font-size: 12px; padding: 5px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: all 0.15s; font-family: 'IBM Plex Mono', monospace; }
+  .col-chip:hover { background: var(--gray-bg); color: var(--text); }
+  .col-chip.selected { background: var(--purple-bg); border-color: var(--purple-border); color: var(--purple); }
+
+  /* Stats */
+  .stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .stat-value { font-size: 24px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
+
+  /* Table */
+  .results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+  .filter-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filter-tab { font-size: 12px; padding: 5px 12px; border-radius: 99px; border: 1px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+  .filter-tab:hover { background: var(--gray-bg); }
+  .filter-tab.active { font-weight: 500; }
+  .filter-tab.f-all.active { background: var(--gray-bg); color: var(--text); border-color: var(--border2); }
+  .filter-tab.f-employee.active { background: var(--accent-bg); color: var(--accent-light); border-color: var(--accent-border); }
+  .filter-tab.f-agent.active { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .filter-tab.f-hospital.active { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .filter-tab.f-customer.active { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+  .filter-tab.f-fp.active { background: var(--gray-bg); color: var(--text3); border-color: var(--border2); }
+
+  .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { background: var(--bg3); border-bottom: 1px solid var(--border2); }
+  th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--gray-bg); }
+  td { padding: 10px 14px; color: var(--text2); vertical-align: middle; }
+  td.mono { color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+  .type-pill { display: inline-flex; font-size: 11px; font-weight: 500; padding: 2px 10px; border-radius: 99px; font-family: 'IBM Plex Mono', monospace; white-space: nowrap; }
+  .pill-employee { background: var(--accent-bg); color: var(--accent-light); border: 1px solid var(--accent-border); }
+  .pill-agent { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+  .pill-hospital { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .pill-customer { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+  .pill-fp { background: var(--gray-bg); color: var(--text3); border: 1px solid var(--border2); }
+
+  /* Steps */
+  .steps-list { display: flex; flex-direction: column; }
+  .step-item { display: flex; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .step-item:last-child { border-bottom: none; }
+  .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent-light); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; }
+  .step-body { flex: 1; padding-top: 4px; }
+  .step-title { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .step-note { font-size: 12px; color: var(--text3); }
+
+  /* Rules */
+  .rules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .rule-card { background: var(--bg2); border-radius: var(--radius); padding: 18px; }
+  .rule-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .rule-icon-wrap { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+  .rule-title { font-size: 14px; font-weight: 600; }
+  .rule-row { display: flex; gap: 8px; padding: 5px 0; font-size: 13px; color: var(--text2); align-items: flex-start; line-height: 1.5; }
+  .rule-bullet { color: var(--text3); flex-shrink: 0; margin-top: 2px; }
+
+  /* Domains */
+  .domain-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .domain-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .domain-row:last-child { border-bottom: none; }
+  .domain-name { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .status-badge { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 99px; }
+  .status-active { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .status-fp { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    aside { display: none; }
+    .classify-grid { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .domain-grid { grid-template-columns: 1fr; }
+    main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    </div>
+    <div>
+      <div class="logo-text">Star Health SOC</div>
+      <div class="logo-sub">Alert Classification Tool</div>
+    </div>
+  </div>
+  <div class="header-badge">CYBLE · Cortex</div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="nav-section">
+      <div class="nav-label">Main</div>
+      <div class="nav-item active" onclick="showPage('classify',this)"><div class="nav-dot dot-blue"></div> Classify Alert</div>
+      <div class="nav-item" onclick="showPage('bulk',this)"><div class="nav-dot dot-purple"></div> Bulk Upload</div>
+      <div class="nav-item" onclick="showPage('steps',this)"><div class="nav-dot dot-green"></div> Processing Steps</div>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-section">
+      <div class="nav-label">Reference</div>
+      <div class="nav-item" onclick="showPage('rules',this)"><div class="nav-dot dot-amber"></div> Classification Rules</div>
+      <div class="nav-item" onclick="showPage('domains',this)"><div class="nav-dot dot-teal"></div> Domain Registry</div>
+    </div>
+  </aside>
+
+  <main>
+
+    <!-- CLASSIFY -->
+    <div class="page active" id="page-classify">
+      <div class="page-header">
+        <div class="page-title">Classify Alert</div>
+        <div class="page-desc">Enter a username, email, or domain from a CYBLE alert to instantly classify it.</div>
+      </div>
+      <div class="classify-grid">
+        <div>
+          <div class="card">
+            <div class="card-title">Alert Input</div>
+            <div class="input-wrap">
+              <input class="classify-input" id="classInput" placeholder="e.g. SH12345, BA0091, Hos123, john doe, user@gmail.com" onkeydown="if(event.key==='Enter')classify()"/>
+              <button class="btn" onclick="classify()">Classify</button>
+              <button class="btn-ghost" onclick="clearSingle()">Clear</button>
+            </div>
+            <div class="result-area" id="resultArea">
+              <div class="result-placeholder" id="placeholder">Enter a value above and press Classify</div>
+              <div class="result-content" id="resultContent">
+                <div id="resultTag" class="result-tag"></div>
+                <div id="resultType" class="result-type"></div>
+                <div id="resultReason" class="result-reason"></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Quick Examples</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              <button class="btn-ghost" onclick="tryExample('SH12345')">SH12345</button>
+              <button class="btn-ghost" onclick="tryExample('BA0091')">BA0091</button>
+              <button class="btn-ghost" onclick="tryExample('SH:BA12345')">SH:BA12345</button>
+              <button class="btn-ghost" onclick="tryExample('Hos123')">Hos123</button>
+              <button class="btn-ghost" onclick="tryExample('STH456')">STH456</button>
+              <button class="btn-ghost" onclick="tryExample('hospital@gmail.com')">hospital@gmail.com</button>
+              <button class="btn-ghost" onclick="tryExample('abchospital@gmail.com')">abchospital@gmail.com</button>
+              <button class="btn-ghost" onclick="tryExample('john doe')">john doe</button>
+              <button class="btn-ghost" onclick="tryExample('user@gmail.com')">user@gmail.com</button>
+              <button class="btn-ghost" onclick="tryExample('agent.starhealth.in')">agent.starhealth.in</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="card" style="height:100%">
+            <div class="card-title">Quick Reference</div>
+            <div class="ref-list">
+              <div class="ref-item"><div class="ref-name" style="color:var(--accent-light)">Employee</div><div class="ref-patterns"><span class="chip chip-blue">@starhealth.in</span><span class="chip chip-blue">@starinsurance.in</span><span class="chip chip-blue">SH#####</span></div></div>
+              <div class="ref-item"><div class="ref-name" style="color:var(--amber)">Agent</div><div class="ref-patterns"><span class="chip chip-amber">BA#####</span><span class="chip chip-amber">SH:BA#####</span></div></div>
+              <div class="ref-item"><div class="ref-name" style="color:var(--green)">Hospital</div><div class="ref-patterns"><span class="chip chip-green">Hos...</span><span class="chip chip-green">STH...</span><span class="chip chip-green">*hospital@...</span></div></div>
+              <div class="ref-item"><div class="ref-name" style="color:var(--red)">Customer</div><div class="ref-patterns"><span class="chip chip-red">@gmail.com</span><span class="chip chip-red">spaces</span><span class="chip chip-red">spl chars</span><span class="chip chip-red">numbers</span><span class="chip chip-red">generic</span></div></div>
+              <div class="ref-item"><div class="ref-name" style="color:var(--text3)">False Positive</div><div class="ref-patterns"><span class="chip chip-gray">agent.starhealth.in</span><span class="chip chip-gray">spp.starhealth.in</span><span class="chip chip-gray">shpv.starhealth.in</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BULK UPLOAD -->
+    <div class="page" id="page-bulk">
+      <div class="page-header">
+        <div class="page-title">Bulk Upload & Classify</div>
+        <div class="page-desc">Upload a CSV or Excel file — the tool will read all rows, let you pick which column to classify, and segregate every entry automatically.</div>
+      </div>
+
+      <!-- Step 1: Upload -->
+      <div id="uploadCard" class="card">
+        <div class="card-title">Step 1 — Upload your file</div>
+        <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+          <svg class="upload-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="6" y="6" width="36" height="36" rx="6"/>
+            <path d="M24 30V18M17 25l7-7 7 7"/>
+            <path d="M14 38h20"/>
+          </svg>
+          <div class="upload-title">Drop your file here or click to browse</div>
+          <div class="upload-sub">Supports CSV · Excel (.xlsx, .xls)</div>
+          <button class="btn" style="background:var(--purple);pointer-events:none">Choose File</button>
+        </div>
+        <input type="file" id="fileInput" class="upload-input" accept=".csv,.xlsx,.xls" onchange="handleFile(this.files[0])"/>
+      </div>
+
+      <!-- Step 2: Column picker -->
+      <div id="colPickerCard" style="display:none">
+        <div class="col-picker">
+          <div class="col-picker-title">Step 2 — Select the column to classify</div>
+          <div class="col-picker-sub">Click the column that contains usernames or email addresses.</div>
+          <div class="col-grid" id="colGrid"></div>
+          <button class="btn" style="background:var(--purple)" onclick="runClassification()">Classify Selected Column</button>
+          <button class="btn-ghost" style="margin-left:8px" onclick="resetUpload()">Start Over</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Results -->
+      <div id="bulkResults" style="display:none">
+        <div class="stats-row" id="bulkStats"></div>
+        <div class="card" style="padding:16px 20px">
+          <div class="results-header">
+            <div class="filter-tabs">
+              <button class="filter-tab f-all active" onclick="filterTable('all',this)">All</button>
+              <button class="filter-tab f-employee" onclick="filterTable('employee',this)">Employee</button>
+              <button class="filter-tab f-agent" onclick="filterTable('agent',this)">Agent</button>
+              <button class="filter-tab f-hospital" onclick="filterTable('hospital',this)">Hospital</button>
+              <button class="filter-tab f-customer" onclick="filterTable('customer',this)">Customer</button>
+              <button class="filter-tab f-fp" onclick="filterTable('fp',this)">False Positive</button>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn-ghost" onclick="exportCSV()">Export CSV</button>
+              <button class="btn-ghost" onclick="resetUpload()">Upload New</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Value</th><th>Type</th><th>Reason</th></tr></thead>
+              <tbody id="resultsBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEPS -->
+    <div class="page" id="page-steps">
+      <div class="page-header">
+        <div class="page-title">Processing Steps</div>
+        <div class="page-desc">Follow these steps in order for every CYBLE leaked credentials alert.</div>
+      </div>
+      <div class="card">
+        <div class="steps-list">
+          <div class="step-item"><div class="step-num">01</div><div class="step-body"><div class="step-title">Open CYBLE alert in Cortex Console</div><div class="step-note">Check source, title, and domain of the alert</div></div></div>
+          <div class="step-item"><div class="step-num">02</div><div class="step-body"><div class="step-title">Verify exposed data ownership</div><div class="step-note">Determine if data belongs to employee / agent / hospital / customer</div></div></div>
+          <div class="step-item"><div class="step-num">03</div><div class="step-body"><div class="step-title">Check for sunsetted domains</div><div class="step-note">If alert source is agent.starhealth.in, spp.starhealth.in, or shpv.starhealth.in → mark as False Positive and stop</div></div></div>
+          <div class="step-item"><div class="step-num">04</div><div class="step-body"><div class="step-title">Generate ticket on Nexus Platform</div><div class="step-note">Refer section 5.0 for ticket creation procedure</div></div></div>
+          <div class="step-item"><div class="step-num">05</div><div class="step-body"><div class="step-title">Segregate alerts by user classification</div><div class="step-note">Use classification rules to categorise each alert</div></div></div>
+          <div class="step-item"><div class="step-num">06</div><div class="step-body"><div class="step-title">Share analysis with On-site SOC team</div><div class="step-note">For password policy validation</div></div></div>
+          <div class="step-item"><div class="step-num">07</div><div class="step-body"><div class="step-title">Mark alert as Under Review</div><div class="step-note">Update status in Cortex Console</div></div></div>
+          <div class="step-item"><div class="step-num">08</div><div class="step-body"><div class="step-title">Resolve alert after SOC confirmation</div><div class="step-note">Do not resolve before receiving confirmation</div></div></div>
+          <div class="step-item"><div class="step-num">09</div><div class="step-body"><div class="step-title">Ensure credential refresh / password reset</div><div class="step-note">For the concerned individual</div></div></div>
+          <div class="step-item"><div class="step-num">10</div><div class="step-body"><div class="step-title">Document proof and close the ticket</div><div class="step-note">Attach all evidence before closing</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RULES -->
+    <div class="page" id="page-rules">
+      <div class="page-header">
+        <div class="page-title">Classification Rules</div>
+        <div class="page-desc">Pattern reference for categorising CYBLE alert users.</div>
+      </div>
+      <div class="rules-grid">
+        <div class="rule-card" style="border:1px solid var(--accent-border)">
+          <div class="rule-header"><div class="rule-icon-wrap" style="background:var(--accent-bg);color:var(--accent-light)">E</div><div><div class="rule-title" style="color:var(--accent-light)">Employee</div></div></div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Email domain is <span class="chip chip-blue" style="margin-left:4px">@starhealth.in</span></div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Email domain is <span class="chip chip-blue" style="margin-left:4px">@starinsurance.in</span></div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Username contains SH code e.g. <span class="chip chip-blue" style="margin-left:4px">SH12345</span></div>
+        </div>
+        <div class="rule-card" style="border:1px solid var(--amber-border)">
+          <div class="rule-header"><div class="rule-icon-wrap" style="background:var(--amber-bg);color:var(--amber)">A</div><div><div class="rule-title" style="color:var(--amber)">Agent</div></div></div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Username contains BA code e.g. <span class="chip chip-amber" style="margin-left:4px">BA0000</span></div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Username in SH:BA format e.g. <span class="chip chip-amber" style="margin-left:4px">SH:BA12345</span></div>
+        </div>
+        <div class="rule-card" style="border:1px solid var(--green-border)">
+          <div class="rule-header"><div class="rule-icon-wrap" style="background:var(--green-bg);color:var(--green)">H</div><div><div class="rule-title" style="color:var(--green)">Hospital</div></div></div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Email where username part contains "hospital" e.g. <span class="chip chip-green" style="margin-left:4px">abchospital@gmail.com</span></div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Username starts with <span class="chip chip-green" style="margin-left:4px">Hos</span></div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Username starts with <span class="chip chip-green" style="margin-left:4px">STH</span></div>
+        </div>
+        <div class="rule-card" style="border:1px solid var(--red-border)">
+          <div class="rule-header"><div class="rule-icon-wrap" style="background:var(--red-bg);color:var(--red)">C</div><div><div class="rule-title" style="color:var(--red)">Customer</div></div></div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Usernames containing numbers (not SH/BA)</div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Generic names or usernames with spaces</div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Usernames with special characters</div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Any @gmail.com or non-employee email</div>
+          <div class="rule-row"><span class="rule-bullet">›</span> Anything else not covered above</div>
+        </div>
+        <div class="rule-card" style="border:1px solid var(--border2);grid-column:1/-1">
+          <div class="rule-header"><div class="rule-icon-wrap" style="background:var(--gray-bg);color:var(--text2)">FP</div><div><div class="rule-title" style="color:var(--text2)">False Positive — Sunsetted Domains</div></div></div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"><span class="chip chip-gray">agent.starhealth.in</span><span class="chip chip-gray">spp.starhealth.in</span><span class="chip chip-gray">shpv.starhealth.in</span></div>
+          <div class="rule-row" style="color:var(--text3)"><span class="rule-bullet">›</span> If any CYBLE alert is triggered from the above domains, mark immediately as False Positive. No further action required.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOMAINS -->
+    <div class="page" id="page-domains">
+      <div class="page-header">
+        <div class="page-title">Domain Registry</div>
+        <div class="page-desc">All Star Health domains and their current operational status.</div>
+      </div>
+      <div class="domain-grid">
+        <div class="card">
+          <div class="card-title">Active Employee Domains</div>
+          <div class="domain-row"><span class="domain-name">@starhealth.in</span><span class="status-badge status-active">Active</span></div>
+          <div class="domain-row"><span class="domain-name">@starinsurance.in</span><span class="status-badge status-active">Active</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Sunsetted Domains → False Positive</div>
+          <div class="domain-row"><span class="domain-name">agent.starhealth.in</span><span class="status-badge status-fp">Sunsetted · FP</span></div>
+          <div class="domain-row"><span class="domain-name">spp.starhealth.in</span><span class="status-badge status-fp">Sunsetted · FP</span></div>
+          <div class="domain-row"><span class="domain-name">shpv.starhealth.in</span><span class="status-badge status-fp">Sunsetted · FP</span></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// Navigation
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  el.classList.add('active');
+}
+
+// Single classifier
+function tryExample(val) { document.getElementById('classInput').value = val; classify(); }
+function clearSingle() {
+  document.getElementById('classInput').value = '';
+  document.getElementById('placeholder').style.display = 'block';
+  document.getElementById('resultContent').style.display = 'none';
+  document.getElementById('resultArea').style.border = '1px solid var(--border)';
+}
+
+function classifyValue(raw) {
+  if (!raw || !raw.trim()) return null;
+  const val = raw.toLowerCase().trim();
+  const sunsetted = ['agent.starhealth.in','spp.starhealth.in','shpv.starhealth.in'];
+  for (const d of sunsetted) {
+    if (val.includes(d)) return { type:'fp', label:'False Positive', reason:'Sunsetted domain: '+d };
+  }
+  if (val.includes('@starhealth.in') || val.includes('@starinsurance.in'))
+    return { type:'employee', label:'Employee', reason:'Matches employee email domain' };
+  if (/sh:ba\d+/i.test(raw) || /\bba\d+/i.test(raw))
+    return { type:'agent', label:'Agent', reason: /sh:ba/i.test(raw) ? 'SH:BA format' : 'BA code detected' };
+  if (/\bsh\d+/i.test(raw))
+    return { type:'employee', label:'Employee', reason:'SH code detected' };
+  const localPart = val.includes('@') ? val.split('@')[0] : val;
+  if (/^hos/i.test(raw.trim()) || /^sth/i.test(raw.trim()) || /hospital/i.test(localPart))
+    return { type:'hospital', label:'Hospital', reason: /hospital/i.test(localPart) && val.includes('@') ? 'Email username contains "hospital" (e.g. abchospital@gmail.com)' : 'Starts with Hos/STH or contains "hospital"' };
+  const flags = [];
+  if (/\s/.test(raw)) flags.push('spaces');
+  if (/[^a-z0-9@._\-]/i.test(raw)) flags.push('special chars');
+  if (val.includes('@gmail.com')) flags.push('@gmail.com');
+  if (/\d/.test(raw) && !/^(sh|ba)\d/i.test(raw)) flags.push('numbers');
+  if (val.includes('@') && !val.includes('@starhealth') && !val.includes('@starinsurance')) flags.push('non-employee email');
+  return { type:'customer', label:'Customer', reason:'Generic'+(flags.length?': '+flags.join(', '):'') };
+}
+
+function classify() {
+  const raw = document.getElementById('classInput').value.trim();
+  if (!raw) return;
+  const r = classifyValue(raw);
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('resultContent').style.display = 'block';
+  const styles = {
+    employee:['var(--accent-bg)','var(--accent-light)','var(--accent-border)'],
+    agent:   ['var(--amber-bg)','var(--amber)','var(--amber-border)'],
+    hospital:['var(--green-bg)','var(--green)','var(--green-border)'],
+    customer:['var(--red-bg)','var(--red)','var(--red-border)'],
+    fp:      ['var(--gray-bg)','var(--text3)','var(--border2)'],
+  };
+  const [bg,col,brd] = styles[r.type];
+  document.getElementById('resultArea').style.border = '1px solid '+brd;
+  const tag = document.getElementById('resultTag');
+  tag.style.cssText = 'display:inline-flex;background:'+bg+';color:'+col+';border:1px solid '+brd;
+  tag.textContent = r.label.toUpperCase();
+  document.getElementById('resultType').style.color = col;
+  document.getElementById('resultType').textContent = r.label;
+  document.getElementById('resultReason').textContent = r.reason;
+}
+
+// Drag & drop
+function handleDragOver(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('dragover'); }
+function handleDragLeave() { document.getElementById('dropZone').classList.remove('dragover'); }
+function handleDrop(e) { e.preventDefault(); handleDragLeave(); const f = e.dataTransfer.files[0]; if(f) handleFile(f); }
+
+// File handling
+let parsedRows = [], parsedHeaders = [], selectedCol = null;
+
+function handleFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    const reader = new FileReader();
+    reader.onload = e => parseCSV(e.target.result);
+    reader.readAsText(file);
+  } else if (ext === 'xlsx' || ext === 'xls') {
+    const reader = new FileReader();
+    reader.onload = e => parseExcel(e.target.result);
+    reader.readAsArrayBuffer(file);
+  } else {
+    alert('Please upload a CSV or Excel (.xlsx/.xls) file.');
+  }
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const cols = lines[i].split(',').map(c => c.replace(/"/g,'').trim());
+    const obj = {};
+    headers.forEach((h,j) => obj[h] = cols[j] || '');
+    rows.push(obj);
+  }
+  showColPicker(rows, headers);
+}
+
+function parseExcel(buffer) {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+  const headers = data.length ? Object.keys(data[0]) : [];
+  showColPicker(data, headers);
+}
+
+function showColPicker(rows, headers) {
+  parsedRows = rows;
+  parsedHeaders = headers;
+  selectedCol = null;
+  document.getElementById('uploadCard').style.display = 'none';
+  document.getElementById('colPickerCard').style.display = 'block';
+  const grid = document.getElementById('colGrid');
+  grid.innerHTML = headers.map(h =>
+    `<button class="col-chip" onclick="selectCol('${h}',this)">${h}</button>`
+  ).join('');
+}
+
+function selectCol(col, el) {
+  document.querySelectorAll('.col-chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedCol = col;
+}
+
+function runClassification() {
+  if (!selectedCol) { alert('Please select a column first.'); return; }
+  allRows = parsedRows.map((row, i) => {
+    const val = String(row[selectedCol] || '').trim();
+    const r = classifyValue(val) || { type:'customer', label:'Customer', reason:'Empty or unrecognised' };
+    return { idx: i+1, value: val, ...r };
+  });
+  document.getElementById('colPickerCard').style.display = 'none';
+  renderBulkResults();
+}
+
+let allRows = [];
+function renderBulkResults() {
+  document.getElementById('bulkResults').style.display = 'block';
+  const counts = { employee:0, agent:0, hospital:0, customer:0, fp:0 };
+  allRows.forEach(r => counts[r.type]++);
+  const colors = { employee:'var(--accent-light)', agent:'var(--amber)', hospital:'var(--green)', customer:'var(--red)', fp:'var(--text3)' };
+  const labels = { employee:'Employee', agent:'Agent', hospital:'Hospital', customer:'Customer', fp:'False Positive' };
+  document.getElementById('bulkStats').innerHTML =
+    `<div class="stat-card"><div class="stat-label">Total</div><div class="stat-value" style="color:var(--text)">${allRows.length}</div></div>` +
+    Object.entries(counts).map(([t,c]) =>
+      `<div class="stat-card"><div class="stat-label">${labels[t]}</div><div class="stat-value" style="color:${colors[t]}">${c}</div></div>`
+    ).join('');
+  filterTable('all', document.querySelector('.filter-tab.f-all'));
+}
+
+function filterTable(type, el) {
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const filtered = type === 'all' ? allRows : allRows.filter(r => r.type === type);
+  const pillClass = { employee:'pill-employee', agent:'pill-agent', hospital:'pill-hospital', customer:'pill-customer', fp:'pill-fp' };
+  const tbody = document.getElementById('resultsBody');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text3);font-size:13px">No records in this category.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(r =>
+    `<tr>
+      <td style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:12px">${r.idx}</td>
+      <td class="mono">${r.value || '—'}</td>
+      <td><span class="type-pill ${pillClass[r.type]}">${r.label}</span></td>
+      <td style="color:var(--text3);font-size:12px">${r.reason}</td>
+    </tr>`
+  ).join('');
+}
+
+function exportCSV() {
+  const header = 'Row,Value,Type,Reason\n';
+  const rows = allRows.map(r => `${r.idx},"${r.value}","${r.label}","${r.reason}"`).join('\n');
+  const blob = new Blob([header+rows], { type:'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'StarHealth_Classified_Alerts.csv';
+  a.click();
+}
+
+function resetUpload() {
+  parsedRows = []; parsedHeaders = []; selectedCol = null; allRows = [];
+  document.getElementById('uploadCard').style.display = 'block';
+  document.getElementById('colPickerCard').style.display = 'none';
+  document.getElementById('bulkResults').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+}
+</script>
+</body>
+</html>
